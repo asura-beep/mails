@@ -1,6 +1,17 @@
 # mails
 
-A draft desk for Gmail, run from a Claude chat.
+A draft desk for Gmail.
+
+**Draft Desk** (`desk/draft-desk.html`, published at
+https://claude.ai/artifact/2HgHH5FvbiJhVNT1kGQ6A8) is the app: it loads your
+Gmail drafts live through the Gmail connector, sorts them by purpose and firm,
+flags problems (missing recipient, placeholders, "resume attached" with nothing
+attached, duplicates, stale drafts, people who already replied), and lets you
+edit, ask Claude to rewrite, delete, and send one draft or a batch of ready ones.
+Nothing sends without a confirm step, and before sending it checks your Sent
+folder for people you've already emailed.
+
+The chat version of the same workflow:
 
 - `drafts/categorize.py` sorts Gmail drafts by **purpose** (follow-up, thank-you,
   reconnect, call request, cold outreach) and **firm** (from the recipient's

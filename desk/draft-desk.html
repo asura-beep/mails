@@ -1,0 +1,774 @@
+<title>Draft Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: three panes like a trading blotter. Groups (purpose / firm) | draft list | the open draft. Collapses to list + sheet on phones. */
+:root{
+  --paper:#EDF0F3; --surface:#FFFFFF; --surface-2:#F6F8FA; --sunk:#E6EAEF;
+  --ink:#101720; --ink-2:#38424F; --muted:#66717D; --faint:#97A1AC;
+  --line:#D8DEE5; --line-soft:#E8ECF0; --sel:#DCE8F4;
+  --accent:#17456E; --accent-soft:#E2ECF6; --accent-ink:#17456E; --on-accent:#FFFFFF;
+  --go:#1E6A47; --go-soft:#DFF0E7;
+  --resume:#8A5A0E; --resume-soft:#F8EDD6;
+  --warn:#7A5A12; --warn-soft:#F5EFDC;
+  --stop:#962F25; --stop-soft:#F8E4E1;
+  --display:'Archivo',ui-sans-serif,system-ui,sans-serif;
+  --body:'IBM Plex Sans',ui-sans-serif,system-ui,-apple-system,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0A0E13; --surface:#121921; --surface-2:#0F151C; --sunk:#0C1117;
+  --ink:#E7ECF1; --ink-2:#C0C9D3; --muted:#8A95A2; --faint:#67727E;
+  --line:#242E39; --line-soft:#1A232C; --sel:#1A2B3B;
+  --accent:#86B6E2; --accent-soft:#14263A; --accent-ink:#A9CDEE; --on-accent:#0A0E13;
+  --go:#62C193; --go-soft:#10281C;
+  --resume:#E0AA52; --resume-soft:#2B2110;
+  --warn:#D6B05A; --warn-soft:#272112;
+  --stop:#E07E70; --stop-soft:#2D1815;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --paper:#0A0E13; --surface:#121921; --surface-2:#0F151C; --sunk:#0C1117;
+  --ink:#E7ECF1; --ink-2:#C0C9D3; --muted:#8A95A2; --faint:#67727E;
+  --line:#242E39; --line-soft:#1A232C; --sel:#1A2B3B;
+  --accent:#86B6E2; --accent-soft:#14263A; --accent-ink:#A9CDEE; --on-accent:#0A0E13;
+  --go:#62C193; --go-soft:#10281C;
+  --resume:#E0AA52; --resume-soft:#2B2110;
+  --warn:#D6B05A; --warn-soft:#272112;
+  --stop:#E07E70; --stop-soft:#2D1815;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:13.5px;line-height:1.45;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--display);margin:0;letter-spacing:-.015em;text-wrap:balance}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+.app{height:100%;display:flex;flex-direction:column;overflow:hidden}
+
+/* top bar */
+.bar{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line)}
+.brand{display:flex;flex-direction:column;line-height:1.1;margin-right:4px}
+.brand h1{font-size:16px;font-weight:700}
+.brand span{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.06em;text-transform:uppercase}
+.tally{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--surface-2)}
+.tally button{border:0;border-right:1px solid var(--line);background:none;padding:4px 12px;text-align:left;line-height:1.1;min-width:74px}
+.tally button:last-child{border-right:0}
+.tally button[aria-pressed="true"]{background:var(--sel)}
+.tally b{display:block;font-family:var(--mono);font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+.tally i{display:block;font-style:normal;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.tally .t-ready b{color:var(--go)} .tally .t-resume b{color:var(--resume)} .tally .t-check b{color:var(--warn)} .tally .t-blocked b{color:var(--stop)}
+.bar .sp{flex:1}
+.ghost{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:6px 11px;font-size:12px;font-weight:500;color:var(--ink-2);white-space:nowrap}
+.ghost:hover{border-color:var(--muted);background:var(--surface-2)}
+.ghost[disabled]{opacity:.5;cursor:default}
+.sync{font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+
+/* panes */
+.panes{flex:1;min-height:0;display:grid;grid-template-columns:220px minmax(0,1fr) minmax(360px,460px);gap:1px;background:var(--line)}
+.pane{background:var(--surface);min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.ph{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;min-height:38px;border-bottom:1px solid var(--line)}
+.ph h2{font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.ph .n{font-family:var(--mono);font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
+.pb{flex:1;overflow-y:auto;overscroll-behavior:contain}
+
+/* group pane */
+.seg{display:flex;margin:8px 12px;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{flex:1;border:0;background:var(--surface);padding:5px 0;font-size:11.5px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
+.gsec{padding:6px 12px 3px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:600}
+.grp{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;width:100%;border:0;background:none;text-align:left;padding:7px 12px}
+.grp:hover{background:var(--surface-2)}
+.grp[aria-current="true"]{background:var(--sel)}
+.grp[aria-current="true"] .gn{color:var(--accent-ink);font-weight:600}
+.gn{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gd{display:block;font-size:10.5px;color:var(--faint);margin-top:1px}
+.gc{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.mini{display:inline-flex;height:6px;width:34px;border-radius:3px;overflow:hidden;background:var(--line-soft)}
+.mini i{display:block;height:100%}
+
+/* list */
+.list-tools{flex:none;display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);background:var(--surface-2);flex-wrap:wrap}
+.list-tools input[type=search]{flex:1 1 160px;min-width:0;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font-size:12.5px}
+.selall{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);white-space:nowrap}
+.row{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:8px 12px 8px 10px;border-bottom:1px solid var(--line-soft);cursor:pointer;position:relative}
+.row::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--stripe,transparent)}
+.row:hover{background:var(--surface-2)}
+.row[aria-current="true"]{background:var(--sel)}
+.row .ck{display:flex;justify-content:center}
+.row input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);margin:0}
+.who{min-width:0}
+.who b{font-weight:600;font-size:13px}
+.who .firm{color:var(--muted);font-size:12px}
+.who .subj{display:block;font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.right{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.pill{font-size:10px;font-weight:600;padding:2px 7px;border-radius:99px;white-space:nowrap;letter-spacing:.01em}
+.pill.ready{background:var(--go-soft);color:var(--go)}
+.pill.resume{background:var(--resume-soft);color:var(--resume)}
+.pill.check{background:var(--warn-soft);color:var(--warn)}
+.pill.blocked{background:var(--stop-soft);color:var(--stop)}
+.ptag{font-family:var(--mono);font-size:9.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row.st-ready{--stripe:var(--go)} .row.st-resume{--stripe:var(--resume)} .row.st-check{--stripe:var(--warn)} .row.st-blocked{--stripe:var(--stop)}
+
+.blank{padding:36px 22px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.55}
+.blank b{display:block;font-family:var(--display);font-size:15px;color:var(--ink);margin-bottom:6px}
+.skel{height:52px;border-bottom:1px solid var(--line-soft);background:linear-gradient(90deg,var(--surface) 0,var(--surface-2) 40%,var(--surface) 80%);background-size:200% 100%;animation:sh 1.4s linear infinite}
+@keyframes sh{to{background-position:-200% 0}}
+
+/* bulk bar */
+.bulk{flex:none;display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid var(--line);background:var(--surface-2);flex-wrap:wrap}
+.bulk .txt{font-size:12.5px;flex:1;min-width:0}
+
+/* detail */
+.dhead{flex:none;padding:12px 16px 10px;border-bottom:1px solid var(--line)}
+.dhead .top{display:flex;align-items:flex-start;gap:10px}
+.dhead h3{font-size:18px;font-weight:700;flex:1;min-width:0}
+.dhead .meta{font-size:12px;color:var(--muted);margin-top:3px}
+.dhead .meta span+span::before{content:"·";margin:0 6px;color:var(--faint)}
+.back{display:none}
+.dbody{flex:1;overflow-y:auto;padding:12px 16px 20px;display:flex;flex-direction:column;gap:14px}
+.flags{display:flex;flex-direction:column;gap:5px}
+.flag{font-size:12px;padding:7px 10px;border-radius:6px;line-height:1.4}
+.flag.block{background:var(--stop-soft);color:var(--stop)}
+.flag.resume{background:var(--resume-soft);color:var(--resume)}
+.flag.warn{background:var(--warn-soft);color:var(--warn)}
+.flag.info{background:var(--surface-2);color:var(--muted);border:1px solid var(--line-soft)}
+.flag a{color:inherit;font-weight:600}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld label{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.fld input,.fld textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);font-size:13px;line-height:1.55}
+.fld textarea{min-height:300px;resize:vertical;font-family:var(--body)}
+.fld input:focus,.fld textarea:focus{border-color:var(--accent);background:var(--surface);outline:none}
+.acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{border:1px solid var(--accent);background:var(--accent);color:var(--on-accent);border-radius:6px;padding:7px 13px;font-size:12.5px;font-weight:600}
+.btn.go{background:var(--go);border-color:var(--go);color:var(--on-accent)}
+.btn.stop{background:var(--stop);border-color:var(--stop);color:var(--on-accent)}
+.btn.quiet{background:var(--surface);color:var(--ink-2);border-color:var(--line)}
+.btn.quiet:hover{border-color:var(--muted)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.link{font-size:12px;color:var(--accent-ink);text-decoration:underline;text-underline-offset:2px;background:none;border:0;padding:0}
+.confirm{border:1px solid var(--line);border-radius:8px;padding:11px 12px;background:var(--surface-2);display:flex;flex-direction:column;gap:9px}
+.confirm p{margin:0;font-size:12.5px}
+.confirm ul{margin:0;padding-left:18px;font-size:12px;max-height:180px;overflow:auto}
+.ask{border-top:1px solid var(--line-soft);padding-top:12px;display:flex;flex-direction:column;gap:6px}
+.ask .rowi{display:flex;gap:6px}
+.ask input{flex:1;min-width:0;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);font-size:12.5px}
+.note{font-size:11.5px;color:var(--muted);line-height:1.45}
+.note.err{color:var(--stop)}
+.spin{display:inline-block;width:11px;height:11px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,10px);background:var(--ink);color:var(--paper);padding:8px 14px;border-radius:7px;font-size:12.5px;font-weight:500;opacity:0;pointer-events:none;transition:.16s;z-index:90;max-width:calc(100% - 32px)}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.banner{flex:none;padding:9px 16px;font-size:12.5px;background:var(--stop-soft);color:var(--stop);border-bottom:1px solid var(--line)}
+
+@media (max-width:1100px){
+  .panes{grid-template-columns:200px minmax(0,1fr)}
+  .pane.detail{position:fixed;inset:0 0 0 auto;width:min(480px,100%);z-index:60;transform:translateX(100%);transition:transform .18s ease;box-shadow:-10px 0 30px rgba(0,0,0,.18);padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  .pane.detail.open{transform:none}
+  .back{display:inline-flex}
+}
+@media (max-width:720px){
+  body{font-size:14px}
+  .panes{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  .pane.groups .ph{display:none}
+  .pane.groups .pb{display:flex;overflow-x:auto;overflow-y:hidden;gap:6px;padding:0 12px 8px}
+  .pane.groups .gsec{display:none}
+  .pane.groups .grp{flex:none;width:auto;border:1px solid var(--line);border-radius:99px;padding:4px 10px;gap:6px}
+  .pane.groups .gd,.pane.groups .mini{display:none}
+  .tally button{min-width:0;padding:4px 9px}
+  .ptag{display:none}
+  .bar{padding:10px 16px}
+}
+</style>
+
+<div class="app">
+  <header class="bar">
+    <div class="brand"><h1>Draft Desk</h1><span id="sync">Gmail drafts</span></div>
+    <div class="tally" role="group" aria-label="Filter by status" id="tally">
+      <button type="button" class="t-all" data-st="all" aria-pressed="true"><b id="cAll">–</b><i>Drafts</i></button>
+      <button type="button" class="t-ready" data-st="ready" aria-pressed="false"><b id="cReady">–</b><i>Ready</i></button>
+      <button type="button" class="t-resume" data-st="resume" aria-pressed="false"><b id="cResume">–</b><i>Need resume</i></button>
+      <button type="button" class="t-check" data-st="check" aria-pressed="false"><b id="cCheck">–</b><i>Check</i></button>
+      <button type="button" class="t-blocked" data-st="blocked" aria-pressed="false"><b id="cBlocked">–</b><i>Blocked</i></button>
+    </div>
+    <div class="sp"></div>
+    <button type="button" class="ghost" id="bAttach" title="Look again for drafts you attached your resume to in Gmail">Recheck attachments</button>
+    <button type="button" class="ghost" id="bRefresh">Refresh</button>
+  </header>
+  <div class="banner" id="banner" hidden></div>
+
+  <div class="panes">
+    <aside class="pane groups">
+      <div class="ph"><h2>Group by</h2></div>
+      <div class="seg" role="group" aria-label="Group by">
+        <button type="button" data-by="purpose" aria-pressed="true">Purpose</button>
+        <button type="button" data-by="firm" aria-pressed="false">Firm</button>
+      </div>
+      <div class="pb" id="groups"></div>
+    </aside>
+
+    <section class="pane list">
+      <div class="list-tools">
+        <input type="search" id="q" placeholder="Search name, firm, email, subject" autocomplete="off">
+        <label class="selall"><input type="checkbox" id="selAll"> Select ready</label>
+      </div>
+      <div class="ph"><h2 id="listTitle">All drafts</h2><span class="n" id="listCount"></span></div>
+      <div class="pb" id="list">
+        <div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div>
+      </div>
+      <div class="bulk" id="bulk" hidden></div>
+    </section>
+
+    <section class="pane detail" id="detail">
+      <div class="blank" id="detailBlank"><b>Pick a draft</b>Open any draft to read it, edit it, ask Claude to rework it, or send it. Ready drafts can also be ticked and sent together.</div>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script id="logic">
+// ---------- categorizing (pure; no DOM) ----------
+const FIRMS = {
+  "gs.com":["Goldman Sachs","Bulge Bracket"],"jpmorgan.com":["J.P. Morgan","Bulge Bracket"],"bofa.com":["Bank of America","Bulge Bracket"],
+  "citi.com":["Citi","Bulge Bracket"],"citigroup.com":["Citi","Bulge Bracket"],"morganstanley.com":["Morgan Stanley","Bulge Bracket"],
+  "barclays.com":["Barclays","Bulge Bracket"],"db.com":["Deutsche Bank","Bulge Bracket"],"ubs.com":["UBS","Bulge Bracket"],
+  "wellsfargo.com":["Wells Fargo","Bulge Bracket"],"mizuhogroup.com":["Mizuho","Bulge Bracket"],"rbccm.com":["RBC","Bulge Bracket"],
+  "moelis.com":["Moelis","Elite Boutique"],"evercore.com":["Evercore","Elite Boutique"],"lazard.com":["Lazard","Elite Boutique"],
+  "centerview.com":["Centerview","Elite Boutique"],"pwpartners.com":["Perella Weinberg","Elite Boutique"],"pjtpartners.com":["PJT Partners","Elite Boutique"],
+  "rothschildandco.com":["Rothschild & Co","Elite Boutique"],"raine.com":["Raine","Elite Boutique"],"liontree.com":["LionTree","Elite Boutique"],
+  "qatalyst.com":["Qatalyst","Elite Boutique"],"guggenheimsecurities.com":["Guggenheim","Middle Market"],"breancapital.com":["Brean Capital","Middle Market"],
+  "jefferies.com":["Jefferies","Middle Market"],"hl.com":["Houlihan Lokey","Middle Market"],"williamblair.com":["William Blair","Middle Market"],
+  "harriswilliams.com":["Harris Williams","Middle Market"],"bairdco.com":["Baird","Middle Market"],"kkr.com":["KKR","Private Equity"],
+  "veritascapital.com":["Veritas Capital","Private Equity"],"lindsaygoldbergllc.com":["Lindsay Goldberg","Private Equity"],
+  "stonepoint.com":["Stone Point","Private Equity"],"vistaequitypartners.com":["Vista Equity","Private Equity"],"crestview.com":["Crestview","Private Equity"],
+  "brookfield.com":["Brookfield","Private Equity"],"blackstone.com":["Blackstone","Private Equity"],"llrpartners.com":["LLR Partners","Private Equity"],
+  "apollo.com":["Apollo","Private Equity"],"carlyle.com":["Carlyle","Private Equity"],"ardeapartners.com":["Ardea Partners","Advisory"],
+  "point72.com":["Point72","Hedge Fund"],"mlp.com":["Millennium","Hedge Fund"],"fortress.com":["Fortress","Hedge Fund"],"citadel.com":["Citadel","Hedge Fund"]
+};
+const ALIASES = {"goldman":"Goldman Sachs","deutsche bank":"Deutsche Bank","morgan stanley":"Morgan Stanley","veritas":"Veritas Capital","vista":"Vista Equity",
+  "rothschild":"Rothschild & Co","lindsay goldberg":"Lindsay Goldberg","stone point":"Stone Point","point72":"Point72","millennium":"Millennium",
+  "fortress":"Fortress","crestview":"Crestview","brookfield":"Brookfield","kkr":"KKR","brean capital":"Brean Capital","citi":"Citi","ubs":"UBS",
+  "lazard":"Lazard","moelis":"Moelis","mizuho":"Mizuho","raine":"Raine","liontree":"LionTree","ardea":"Ardea Partners","evercore":"Evercore",
+  "centerview":"Centerview","llr":"LLR Partners","jefferies":"Jefferies","pjt":"PJT Partners","barclays":"Barclays","wells fargo":"Wells Fargo"};
+const TYPE_OF = {}; for (const [n,t] of Object.values(FIRMS)) TYPE_OF[n]=t;
+const TYPE_ORDER = ["Bulge Bracket","Elite Boutique","Middle Market","Private Equity","Hedge Fund","Advisory","Other"];
+const PURPOSES = [
+  ["Follow-up","Nudges on emails you already sent"],
+  ["Thank-you","Thanks after a session or visit"],
+  ["Reconnect","People you already know"],
+  ["Call request","15-minute call asks"],
+  ["Cold outreach","First \u201cquick question\u201d emails"],
+  ["Other","Everything else"]
+];
+const NICK = {matt:"matthew",mike:"michael",gabe:"gabriel",will:"william",ben:"benjamin",tom:"thomas",tommy:"thomas",nick:"nicholas",
+  alex:"alexander",andy:"andrew",drew:"andrew",sam:"samuel",dan:"daniel",jon:"jonathan",rob:"robert",bob:"robert",chris:"christopher",
+  joe:"joseph",jack:"john",theo:"theophile",kate:"katherine",liz:"elizabeth",max:"maxwell",zach:"zachary",jake:"jacob"};
+
+function decodeEntities(s){
+  return s.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi,(m,e)=>{
+    if (e[0]==="#") { const n = e[1]==="x"||e[1]==="X" ? parseInt(e.slice(2),16) : parseInt(e.slice(1),10); return isNaN(n)?m:String.fromCodePoint(n); }
+    return ({amp:"&",lt:"<",gt:">",quot:'"',apos:"'",nbsp:" ",mdash:"\u2014",ndash:"\u2013",rsquo:"\u2019",lsquo:"\u2018",rdquo:"\u201d",ldquo:"\u201c",hellip:"\u2026"})[e.toLowerCase()] ?? m;
+  });
+}
+const QUOTE_MARKERS = ['<div class="gmail_extra"','<div class="gmail_quote"','<blockquote'];
+function quoteIndex(html){ let i=-1; for (const m of QUOTE_MARKERS){ const j=html.indexOf(m); if (j>=0 && (i<0||j<i)) i=j; } return i; }
+function htmlToText(html){
+  const q = quoteIndex(html); let s = q>=0 ? html.slice(0,q) : html;
+  s = s.replace(/<br\s*\/?>/gi,"\n").replace(/<\/(div|p)>/gi,"\n").replace(/<[^>]+>/g,"");
+  return decodeEntities(s);
+}
+function cleanBody(d){
+  let t = d.plaintextBody || htmlToText(d.htmlBody||"");
+  t = t.replace(/\r/g,"").split(/\n\s*On .{5,200}wrote:\s*\n/)[0];
+  const out = [];
+  for (const raw of t.trim().split("\n")){
+    const line = raw.replace(/\s+$/,"");
+    if (out.length && out[out.length-1] && line && out[out.length-1].length >= 60) out[out.length-1] += " " + line.trim();
+    else out.push(line);
+  }
+  return out.join("\n").replace(/\n{3,}/g,"\n\n").trim();
+}
+function firmFor(recipient, subject){
+  const domain = recipient ? recipient.split("@").pop().toLowerCase() : "";
+  if (FIRMS[domain]) return FIRMS[domain];
+  const m = subject.match(/\|\s*(.+?)\s+(Quick Question|15 Min|Coffee)/i);
+  const cands = m ? [m[1], subject] : [subject];
+  const keys = Object.keys(ALIASES).sort((a,b)=>b.length-a.length);
+  for (const c of cands){ const low=c.toLowerCase();
+    for (const k of keys){ if (new RegExp("\\b"+k.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b").test(low)) { const n=ALIASES[k]; return [n, TYPE_OF[n]||"Other"]; } } }
+  if (domain && !/(edu|gmail\.com|yahoo|outlook|hotmail|icloud)/.test(domain)){ const p=domain.split("."); const b=p.length>1?p[p.length-2]:p[0]; return [b.charAt(0).toUpperCase()+b.slice(1),"Other"]; }
+  return ["Unknown firm","Other"];
+}
+function purposeFor(subject, body){
+  const s=subject.toLowerCase(), b=body.toLowerCase();
+  if (/^re:/.test(s) && /follow(ing)? up|got buried|last note|bumping|circling back/.test(b)) return "Follow-up";
+  if (/thank|great session|having us/.test(s)) return "Thank-you";
+  if (s.includes("good seeing you") || b.slice(0,200).includes("good seeing you")) return "Reconnect";
+  if (s.includes("call request")) return "Call request";
+  if (s.includes("quick question")) return "Cold outreach";
+  if (/^re:/.test(s)) return "Follow-up";
+  return "Other";
+}
+function hookFor(subject){
+  let h = subject.replace(/^(re:\s*)+/i,"").split("|")[0];
+  h = h.replace(/,?\s*(Current|now)\s+Soph.*$/i,"").trim().replace(/\s+(Student|Alum|Soph\.?.*)$/i,"");
+  h = h.replace(/^[\s,.]+|[\s,.]+$/g,"");
+  return h.length <= 32 ? h : "";
+}
+function greetingOf(body){
+  const m = body.match(/^\s*(?:Hi|Hello|Hey|Dear)\s+((?:(?:Mr|Ms|Mrs|Dr)\.?\s+)?[A-Z\u00C0-\u024F][\w'\u00C0-\u024F-]*)/) || body.match(/^\s*([A-Z][\w'-]*),\s*\n/);
+  return m ? m[1] : "";
+}
+const fold = s => s.normalize("NFKD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+function nameMismatch(greet, recipient){
+  if (!greet || !recipient) return false;
+  const local = recipient.split("@")[0].toLowerCase();
+  if (!local.includes(".")) return false;
+  const parts = local.split(".").map(x=>x.replace(/\d/g,""));
+  const t = greet.match(/^(?:Mr|Ms|Mrs|Dr)\.?\s+(.+)$/);
+  if (t) return fold(t[1]) !== parts[parts.length-1];
+  const g = fold(greet), full = NICK[g]||g, first = parts[0];
+  return !(first.startsWith(g.slice(0,3)) || first===full || first.startsWith(full.slice(0,4)));
+}
+function displayName(r){
+  if (r.greeting && !/^(Mr|Ms|Mrs|Dr)\b/.test(r.greeting)){
+    const local=(r.recipient.split("@")[0]||"").split(".");
+    const last = local.length>1 ? local[local.length-1].replace(/\d/g,"") : "";
+    return last ? r.greeting+" "+last.charAt(0).toUpperCase()+last.slice(1) : r.greeting;
+  }
+  return r.greeting || r.recipient || "No recipient";
+}
+function categorize(d){
+  const to = d.toRecipients || [];
+  const recipient = to[0] || "";
+  const subject = d.subject || "";
+  const body = cleanBody(d);
+  const [firm, firmType] = firmFor(recipient, subject);
+  const r = { id:d.id, threadId:d.threadId, to, recipient, subject, body, firm, firmType,
+    purpose: purposeFor(subject, body), hook: hookFor(subject), greeting: greetingOf(body),
+    isReply: /^re:/i.test(subject), date: d.date || "", viewUrl: d.viewUrl || "", htmlBody: d.htmlBody || "", plaintextBody: d.plaintextBody || "" };
+  r.name = displayName(r);
+  return r;
+}
+// flags depend on the whole set (duplicates), the attachment list and any thread check
+function flagsFor(r, ctx){
+  const f = [];
+  if (!r.to.length) f.push({lv:"block", t:"No recipient. Add an email address before sending."});
+  const ph = (r.body + " " + r.subject).match(/\[[^\]\n]{1,40}\]|\{\{[^}]*\}\}|\bTODO\b|\bXXX+\b/);
+  if (ph) f.push({lv:"block", t:"Placeholder left in: " + ph[0]});
+  if (!r.body.trim()) f.push({lv:"block", t:"The body is empty."});
+  if (r.thread && r.thread.replied) f.push({lv:"block", t:"They already replied" + (r.thread.repliedAt ? " on " + shortDate(r.thread.repliedAt) : "") + ". This nudge would cross their reply."});
+  const mentions = /\battach(ed|ing)?\b|\bresume\b/i.test(r.body);
+  if (mentions && ctx.attached && !ctx.attached.has(r.id)) f.push({lv:"resume", t:"Says the resume is attached, but nothing is attached. Open it in Gmail, attach the PDF, then press Recheck attachments."});
+  if (mentions && !ctx.attached) f.push({lv:"warn", t:"Mentions an attachment. Check it in Gmail before sending."});
+  if (r.recipient && (ctx.counts[r.recipient.toLowerCase()]||0) > 1) f.push({lv:"warn", t:"Another draft also goes to " + r.recipient + ". Send one and delete the other."});
+  if (nameMismatch(r.greeting, r.recipient)) f.push({lv:"warn", t:"Greeting \u201c" + r.greeting + "\u201d may not match " + r.recipient + "."});
+  const sm = r.subject.match(/\|\s*(.+?)\s+(Quick Question|15 Min)/i);
+  if (sm && r.recipient && FIRMS[r.recipient.split("@").pop().toLowerCase()]){
+    const sf = firmFor("", sm[1])[0];
+    if (sf !== "Unknown firm" && sf !== r.firm && TYPE_OF[sf]) f.push({lv:"warn", t:"Subject says " + sf + " but the address is at " + r.firm + "."});
+  }
+  const age = r.date ? Math.floor((ctx.now - Date.parse(r.date)) / 864e5) : 0;
+  if (age > 21) f.push({lv:"warn", t:"Written " + age + " days ago. Check that it still reads right (dates, \u201cthis morning\u201d, \u201cthis summer\u201d)."});
+  if (r.thread && r.thread.lastSentAt && !r.thread.replied){
+    const days = Math.floor((ctx.now - Date.parse(r.thread.lastSentAt)) / 864e5);
+    if (days >= 0) f.push({lv:"info", t:"You last emailed them " + (days===0?"today":days===1?"yesterday":days + " days ago") + "."});
+  }
+  return f;
+}
+function statusOf(flags){
+  if (flags.some(x=>x.lv==="block")) return "blocked";
+  if (flags.some(x=>x.lv==="resume")) return "resume";
+  if (flags.some(x=>x.lv==="warn")) return "check";
+  return "ready";
+}
+function shortDate(iso){ const d=new Date(iso); return isNaN(d)?"":d.toLocaleDateString(undefined,{month:"short",day:"numeric"}); }
+function textToHtml(text){
+  const esc = text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+  return '<div dir="ltr">' + esc.replace(/\n/g,"<br>") + "</div>";
+}
+function buildHtml(newBody, originalHtml){
+  const q = quoteIndex(originalHtml||"");
+  return textToHtml(newBody) + (q>=0 ? "<br>" + originalHtml.slice(q) : "");
+}
+if (typeof module !== "undefined") module.exports = {categorize, flagsFor, statusOf, cleanBody, buildHtml, nameMismatch};
+</script>
+
+<script>
+// ---------- page ----------
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
+const S = { mcp:null, sample:null, drafts:[], attached:null, by:"purpose", group:null, st:"all", q:"", sel:null, checked:new Set(), edits:{}, loading:false, confirm:null };
+try { const v = localStorage.getItem("dd.by"); if (v==="firm"||v==="purpose") S.by = v; } catch(e){}
+
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("on"); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("on"),2600); }
+function errCopy(e, write){
+  const c = e && e.code;
+  if (write && (c==="server_unavailable" || c==="upstream_error" || c==="cancelled")) return "Gmail didn't confirm this. Check Sent or Drafts in Gmail before trying again.";
+  switch(c){
+    case "server_not_connected": return "Gmail isn't connected for you. Add it in claude.ai Settings \u2192 Connectors, then press Refresh.";
+    case "needs_reauth": return "Gmail needs to be reconnected. Reconnect it in claude.ai Settings \u2192 Connectors, then press Refresh.";
+    case "selection_required": return "You have more than one Gmail connector. Choose one when Claude asks, then press Refresh.";
+    case "not_in_manifest": return "Gmail is turned off for this page. Allow Gmail for it, then press Refresh.";
+    case "blocked_by_policy": case "approval_required": return "Your organization doesn't allow this Gmail action from here.";
+    case "not_granted": case "capability_disabled": case "capability_removed": return "This page can reach Gmail only when it's open in Claude.";
+    case "tool_error": return "Gmail refused it: " + (e.message || "no reason given") + ".";
+    case "server_unavailable": return "Gmail didn't answer in time. Press Refresh in a moment.";
+    default: return "Couldn't reach Gmail" + (e && e.message ? ": " + e.message : ".");
+  }
+}
+async function gmail(tool, input, {read=true}={}){
+  try { return (await S.mcp.callTool("Gmail", tool, input, {cache:false})).payload || {}; }
+  catch(e){
+    if (read && e && e.retryable){ await new Promise(r=>setTimeout(r, (e.retryAfterMs||800) + Math.random()*700)); return (await S.mcp.callTool("Gmail", tool, input, {cache:false})).payload || {}; }
+    throw e;
+  }
+}
+async function listAll(input){
+  const out=[]; let token="";
+  for (let i=0;i<12;i++){
+    const p = await gmail("list_drafts", Object.assign({pageSize:50}, input, token?{pageToken:token}:{}));
+    const ds = (p && p.drafts) || []; out.push(...ds);
+    token = p && p.nextPageToken; if (!token || !ds.length) break;
+  }
+  return out;
+}
+function recompute(){
+  const counts = {};
+  for (const r of S.drafts) if (r.recipient) counts[r.recipient.toLowerCase()] = (counts[r.recipient.toLowerCase()]||0)+1;
+  const ctx = {counts, attached:S.attached, now:Date.now()};
+  for (const r of S.drafts){ r.flags = flagsFor(r, ctx); r.status = statusOf(r.flags); r.hasAttachment = S.attached ? S.attached.has(r.id) : null; }
+  for (const id of [...S.checked]){ const r=byId(id); if (!r || r.status!=="ready") S.checked.delete(id); }
+}
+const byId = id => S.drafts.find(r=>r.id===id);
+
+async function load(){
+  if (!S.mcp || S.loading) return;
+  S.loading = true; $("bRefresh").disabled = true; $("banner").hidden = true;
+  $("sync").innerHTML = '<span class="spin"></span> Loading from Gmail';
+  try{
+    const [full, att] = await Promise.all([ listAll({view:"DRAFT_VIEW_FULL"}), listAll({query:"has:attachment"}).catch(()=>null) ]);
+    S.drafts = full.map(categorize);
+    S.attached = att ? new Set(att.map(d=>d.id)) : null;
+    S.edits = {}; S.confirm = null;
+    if (S.sel && !byId(S.sel)) S.sel = null;
+    recompute(); render();
+    $("sync").textContent = "Loaded " + new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"});
+    checkThreads();
+  } catch(e){
+    $("banner").textContent = errCopy(e); $("banner").hidden = false;
+    $("sync").textContent = "Not loaded";
+    if (!S.drafts.length) $("list").innerHTML = '<div class="blank"><b>Drafts didn\u2019t load</b>' + esc(errCopy(e)) + '</div>';
+  } finally { S.loading = false; $("bRefresh").disabled = false; }
+}
+// Follow-ups: did the person already reply? when did you last write?
+async function checkThreads(){
+  const todo = S.drafts.filter(r=>r.isReply && r.threadId && r.recipient);
+  let i = 0;
+  async function worker(){
+    while (i < todo.length){
+      const r = todo[i++];
+      try{
+        const t = await gmail("get_thread", {threadId:r.threadId, messageFormat:"METADATA_ONLY"});
+        const msgs = (t && t.messages) || [];
+        const them = r.recipient.toLowerCase();
+        let replied=null, lastSent=null;
+        for (const m of msgs){
+          const from = String(m.sender||"").toLowerCase();
+          const sent = (m.labelIds||[]).includes("SENT");
+          if (sent){ if (!lastSent || m.date > lastSent) lastSent = m.date; }
+          else if (from.includes(them)) { if (!replied || m.date > replied) replied = m.date; }
+        }
+        // any reply from them in this thread makes a "bumping this" nudge wrong, even if you wrote back after
+        r.thread = { replied: !!replied, repliedAt: replied, lastSentAt: lastSent };
+      } catch(e){ /* leave unchecked */ }
+    }
+  }
+  await Promise.all([worker(),worker(),worker(),worker()]);
+  recompute(); render();
+}
+
+// ---------- rendering ----------
+function visible(){
+  const q = S.q.trim().toLowerCase();
+  return S.drafts.filter(r =>
+    (S.st==="all" || r.status===S.st) &&
+    (!S.group || (S.by==="purpose" ? r.purpose===S.group : r.firm===S.group)) &&
+    (!q || [r.name,r.firm,r.recipient,r.subject,r.hook].join(" ").toLowerCase().includes(q)));
+}
+const ST_LABEL = {ready:"Ready", resume:"Needs resume", check:"Check", blocked:"Blocked"};
+const ST_COLOR = {ready:"var(--go)", resume:"var(--resume)", check:"var(--warn)", blocked:"var(--stop)"};
+function miniBar(rs){
+  const n = rs.length || 1; let h = "";
+  for (const s of ["ready","resume","check","blocked"]){ const c = rs.filter(r=>r.status===s).length; if (c) h += '<i style="width:'+(c/n*100)+'%;background:'+ST_COLOR[s]+'"></i>'; }
+  return '<span class="mini">' + h + "</span>";
+}
+function renderTally(){
+  const c = s => S.drafts.filter(r=>r.status===s).length;
+  $("cAll").textContent = S.drafts.length; $("cReady").textContent = c("ready"); $("cResume").textContent = c("resume");
+  $("cCheck").textContent = c("check"); $("cBlocked").textContent = c("blocked");
+  for (const b of $("tally").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.st===S.st));
+  $("bAttach").hidden = !S.drafts.some(r=>r.status==="resume");
+}
+function renderGroups(){
+  for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-pressed", String(b.dataset.by===S.by));
+  let h = '<button type="button" class="grp" data-g="" aria-current="'+(!S.group)+'"><span class="gn">All drafts</span><span class="gc">'+miniBar(S.drafts)+S.drafts.length+'</span></button>';
+  if (S.by==="purpose"){
+    for (const [p,desc] of PURPOSES){ const rs=S.drafts.filter(r=>r.purpose===p); if (!rs.length) continue;
+      h += '<button type="button" class="grp" data-g="'+esc(p)+'" aria-current="'+(S.group===p)+'"><span><span class="gn">'+esc(p)+'</span><span class="gd">'+esc(desc)+'</span></span><span class="gc">'+miniBar(rs)+rs.length+'</span></button>'; }
+  } else {
+    for (const t of TYPE_ORDER){
+      const firms = {}; for (const r of S.drafts) if (r.firmType===t) (firms[r.firm] ||= []).push(r);
+      const names = Object.keys(firms).sort((a,b)=>firms[b].length-firms[a].length || a.localeCompare(b));
+      if (!names.length) continue;
+      h += '<div class="gsec">'+esc(t)+'</div>';
+      for (const n of names) h += '<button type="button" class="grp" data-g="'+esc(n)+'" aria-current="'+(S.group===n)+'"><span class="gn">'+esc(n)+'</span><span class="gc">'+miniBar(firms[n])+firms[n].length+'</span></button>';
+    }
+  }
+  $("groups").innerHTML = h;
+}
+function renderList(){
+  const rs = visible().sort((a,b)=> S.by==="purpose" ? (a.firm.localeCompare(b.firm) || a.name.localeCompare(b.name)) : (PURPOSES.findIndex(p=>p[0]===a.purpose) - PURPOSES.findIndex(p=>p[0]===b.purpose) || a.name.localeCompare(b.name)));
+  $("listTitle").textContent = (S.group || "All drafts") + (S.st!=="all" ? " \u00b7 " + ST_LABEL[S.st] : "");
+  $("listCount").textContent = rs.length + (rs.length===1?" draft":" drafts");
+  if (!S.drafts.length && !S.loading){ $("list").innerHTML = '<div class="blank"><b>No drafts</b>Your Gmail drafts folder is empty.</div>'; renderBulk(); return; }
+  if (!rs.length){ $("list").innerHTML = '<div class="blank"><b>Nothing here</b>No drafts match this filter.</div>'; renderBulk(); return; }
+  $("list").innerHTML = rs.map(r => {
+    const ok = r.status==="ready";
+    return '<div class="row st-'+r.status+'" data-id="'+esc(r.id)+'" aria-current="'+(S.sel===r.id)+'" tabindex="0" role="button">'
+      + '<span class="ck">' + (ok ? '<input type="checkbox" aria-label="Select '+esc(r.name)+'" data-ck="'+esc(r.id)+'"'+(S.checked.has(r.id)?" checked":"")+'>' : "") + '</span>'
+      + '<span class="who"><b>'+esc(r.name)+'</b> <span class="firm">'+esc(r.firm)+'</span><span class="subj">'+esc(r.subject || "(no subject)")+'</span></span>'
+      + '<span class="right"><span class="pill '+r.status+'">'+ST_LABEL[r.status]+'</span><span class="ptag">'+esc(S.by==="purpose"?r.hook||r.firmType:r.purpose)+'</span></span></div>';
+  }).join("");
+  const readyVis = rs.filter(r=>r.status==="ready");
+  $("selAll").checked = readyVis.length>0 && readyVis.every(r=>S.checked.has(r.id));
+  $("selAll").disabled = !readyVis.length;
+  renderBulk();
+}
+function renderBulk(){
+  const n = S.checked.size, el = $("bulk");
+  if (!n){ el.hidden = true; return; }
+  el.hidden = false;
+  if (S.confirm && S.confirm.kind==="bulk"){
+    const c = S.confirm;
+    el.innerHTML = '<div class="confirm" style="flex:1;min-width:0">'
+      + (c.running ? '<p><span class="spin"></span> Sending ' + c.done + ' of ' + c.ids.length + '\u2026</p>' :
+        '<p><b>Send these ' + c.ids.length + ' drafts now?</b> Gmail sends each one exactly as saved.</p>'
+        + '<ul>' + c.ids.map(id=>{ const r=byId(id); const prior=c.prior&&c.prior[r.recipient.toLowerCase()]; return '<li>'+esc(r.name)+' \u00b7 '+esc(r.firm)+(prior?' <b style="color:var(--warn)">(you emailed them '+esc(shortDate(prior))+')</b>':'')+'</li>'; }).join("") + '</ul>'
+        + (c.checking ? '<p class="note"><span class="spin"></span> Checking your Sent folder\u2026</p>' : '')
+        + '<div class="acts"><button type="button" class="btn go" id="bBulkGo"'+(c.checking?" disabled":"")+'>Send ' + c.ids.length + '</button><button type="button" class="btn quiet" id="bBulkCancel">Cancel</button></div>')
+      + '</div>';
+    return;
+  }
+  el.innerHTML = '<span class="txt"><b>' + n + '</b> ready draft' + (n===1?"":"s") + ' selected</span><button type="button" class="btn quiet" id="bClear">Clear</button><button type="button" class="btn go" id="bBulk">Send ' + n + '</button>';
+}
+function renderDetail(){
+  const pane = $("detail"); const r = S.sel && byId(S.sel);
+  if (!r){ pane.classList.remove("open"); pane.innerHTML = '<div class="blank"><b>Pick a draft</b>Open any draft to read it, edit it, ask Claude to rework it, or send it. Ready drafts can also be ticked and sent together.</div>'; return; }
+  pane.classList.add("open");
+  const e = S.edits[r.id] || {to:r.to.join(", "), subject:r.subject, body:r.body};
+  const dirty = e.to!==r.to.join(", ") || e.subject!==r.subject || e.body!==r.body;
+  S.dirtyShown = dirty;
+  const c = S.confirm && S.confirm.id===r.id ? S.confirm : null;
+  const blocked = r.status==="blocked";
+  let flags = r.flags.map(f=>'<div class="flag '+f.lv+'">'+esc(f.t)+'</div>').join("");
+  if (r.hasAttachment) flags += '<div class="flag info">Your resume is attached. Saving edits here would remove it, so edit this one in Gmail.</div>';
+  pane.innerHTML =
+    '<div class="dhead"><div class="top"><button type="button" class="ghost back" id="bBack">\u2190 Back</button><h3>'+esc(r.name)+'</h3><span class="pill '+r.status+'">'+ST_LABEL[r.status]+'</span></div>'
+    + '<div class="meta"><span>'+esc(r.firm)+'</span><span>'+esc(r.firmType)+'</span><span>'+esc(r.purpose)+'</span>'+(r.hook?'<span>'+esc(r.hook)+'</span>':'')+'</div></div>'
+    + '<div class="dbody">'
+    + (flags ? '<div class="flags">'+flags+'</div>' : '<div class="flags"><div class="flag info">No problems found. This draft is ready to send.</div></div>')
+    + '<div class="fld"><label for="eTo">To</label><input id="eTo" type="email" multiple value="'+esc(e.to)+'"></div>'
+    + '<div class="fld"><label for="eSubject">Subject</label><input id="eSubject" type="text" value="'+esc(e.subject)+'"></div>'
+    + '<div class="fld"><label for="eBody">Message</label><textarea id="eBody" spellcheck="true">'+esc(e.body)+'</textarea>'
+    + (r.isReply ? '<span class="note">Your earlier email stays quoted below this when it sends.</span>' : '') + '</div>'
+    + '<div class="acts">'
+    +   '<button type="button" class="btn" id="bSave"'+(dirty && !r.hasAttachment ? "" : " disabled")+'>Save to Gmail</button>'
+    +   (dirty ? '<button type="button" class="btn quiet" id="bRevert">Discard edits</button>' : '')
+    +   '<a class="link" href="'+esc(r.viewUrl)+'" target="_blank" rel="noopener">Open in Gmail'+(r.status==="resume"?" to attach resume":"")+'</a>'
+    + '</div>'
+    + '<p class="note" id="saveNote"></p>'
+    + (c ? confirmBox(r, c, dirty) :
+      '<div class="acts"><button type="button" class="btn go" id="bSend"'+(blocked||dirty?" disabled":"")+'>Send</button><button type="button" class="btn quiet" id="bDelete">Delete draft</button>'
+      + (blocked ? '<span class="note">Fix the red items to send.</span>' : dirty ? '<span class="note">Save your edits first.</span>' : '') + '</div>')
+    + (S.sample ? '<div class="ask"><label class="note" for="eAsk"><b>Ask Claude to change it</b> \u2014 e.g. \u201cshorter\u201d, \u201cmove the call to next week\u201d, \u201cmention Lazard PEI\u201d</label>'
+      + '<div class="rowi"><input id="eAsk" type="text" placeholder="What should change?"><button type="button" class="btn quiet" id="bAsk">Rewrite</button></div><p class="note" id="askNote"></p></div>' : '')
+    + '</div>';
+}
+function confirmBox(r, c, dirty){
+  if (c.kind==="delete") return '<div class="confirm"><p><b>Delete this draft?</b> It\u2019s removed from Gmail for good.</p><div class="acts"><button type="button" class="btn stop" id="bDelGo"'+(c.running?" disabled":"")+'>'+(c.running?'<span class="spin"></span> Deleting':'Delete')+'</button><button type="button" class="btn quiet" id="bCancel">Cancel</button></div></div>';
+  const warn = r.flags.filter(f=>f.lv!=="info" && f.lv!=="block");
+  return '<div class="confirm"><p><b>Send to '+esc(r.to.join(", "))+'?</b></p>'
+    + (c.checking ? '<p class="note"><span class="spin"></span> Checking your Sent folder\u2026</p>' : '')
+    + (c.prior ? '<p class="note" style="color:var(--warn)">You already emailed '+esc(r.recipient)+' on '+esc(shortDate(c.prior))+'.</p>' : '')
+    + warn.map(f=>'<p class="note" style="color:var(--'+(f.lv==="resume"?"resume":"warn")+')">'+esc(f.t)+'</p>').join("")
+    + '<div class="acts"><button type="button" class="btn go" id="bSendGo"'+(c.running||c.checking?" disabled":"")+'>'+(c.running?'<span class="spin"></span> Sending':(warn.length||c.prior?'Send anyway':'Send now'))+'</button><button type="button" class="btn quiet" id="bCancel">Cancel</button></div>'
+    + (c.err ? '<p class="note err">'+esc(c.err)+'</p>' : '') + '</div>';
+}
+function render(){ renderTally(); renderGroups(); renderList(); renderDetail(); }
+
+// ---------- actions ----------
+async function priorSent(emails){
+  const out = {}; const list = [...new Set(emails.filter(Boolean).map(e=>e.toLowerCase()))];
+  for (let i=0;i<list.length;i+=20){
+    const chunk = list.slice(i,i+20);
+    const p = await gmail("search_threads", {query:"in:sent (" + chunk.map(e=>"to:"+e).join(" OR ") + ")", pageSize:50, view:"THREAD_VIEW_METADATA_ONLY"});
+    for (const t of (p && p.threads) || []) for (const m of t.messages || []){
+      if (!(m.labelIds||[]).includes("SENT")) continue;
+      for (const to of m.toRecipients || []){ const k=String(to).toLowerCase(); if (chunk.includes(k) && (!out[k] || m.date>out[k])) out[k]=m.date; }
+    }
+  }
+  return out;
+}
+async function startSend(r){
+  S.confirm = {kind:"send", id:r.id, checking:!r.isReply}; renderDetail();
+  if (!r.isReply){
+    try { const p = await priorSent([r.recipient]); if (S.confirm && S.confirm.id===r.id) S.confirm.prior = p[r.recipient.toLowerCase()] || null; } catch(e){}
+    if (S.confirm && S.confirm.id===r.id){ S.confirm.checking=false; renderDetail(); }
+  }
+}
+async function doSend(r){
+  S.confirm.running = true; S.confirm.err = null; renderDetail();
+  try {
+    await gmail("send_message", {draftId:r.id}, {read:false});
+    S.drafts = S.drafts.filter(x=>x.id!==r.id); S.checked.delete(r.id); S.confirm=null; S.sel=null;
+    recompute(); render(); toast("Sent to " + r.name);
+  } catch(e){ S.confirm.running=false; S.confirm.err = errCopy(e, true); renderDetail(); }
+}
+async function doDelete(r){
+  S.confirm.running = true; renderDetail();
+  try { await gmail("delete_draft", {draftId:r.id}, {read:false}); S.drafts=S.drafts.filter(x=>x.id!==r.id); S.confirm=null; S.sel=null; recompute(); render(); toast("Deleted the draft to " + r.name); }
+  catch(e){ S.confirm=null; renderDetail(); $("saveNote").textContent = errCopy(e, true); $("saveNote").className="note err"; }
+}
+async function doSave(r){
+  const e = S.edits[r.id]; if (!e) return;
+  const to = e.to.split(/[,;\s]+/).map(s=>s.trim()).filter(Boolean);
+  if (to.some(a=>!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(a))){ $("saveNote").textContent="One of the addresses in To doesn\u2019t look right."; $("saveNote").className="note err"; return; }
+  $("bSave").disabled = true; $("saveNote").className="note"; $("saveNote").innerHTML='<span class="spin"></span> Saving';
+  const input = {draftId:r.id, body:e.body, htmlBody:buildHtml(e.body, r.htmlBody)};
+  if (e.subject !== r.subject && e.subject.trim()) input.subject = e.subject;
+  if (to.length && to.join(",") !== r.to.join(",")) input.to = to;
+  try {
+    await gmail("update_draft", input, {read:false});
+    Object.assign(r, {body:e.body, subject:input.subject||r.subject, to:to.length?to:r.to, htmlBody:input.htmlBody, plaintextBody:e.body});
+    r.recipient = r.to[0]||""; r.greeting = greetingOf(r.body); r.name = displayName(r);
+    r.purpose = purposeFor(r.subject, r.body); r.hook = hookFor(r.subject); [r.firm, r.firmType] = firmFor(r.recipient, r.subject);
+    delete S.edits[r.id]; recompute(); render(); toast("Saved to Gmail");
+  } catch(err){ $("saveNote").textContent = errCopy(err, true); $("saveNote").className="note err"; $("bSave").disabled=false; }
+}
+let askCtl = null;
+async function doAsk(r){
+  const instr = $("eAsk").value.trim(); if (!instr) return;
+  const e = S.edits[r.id] || (S.edits[r.id] = {to:r.to.join(", "), subject:r.subject, body:r.body});
+  const before = e.body; askCtl?.abort(); askCtl = new AbortController();
+  const note = $("askNote"); note.className="note"; note.innerHTML = '<span class="spin"></span> Claude is rewriting\u2026 <button type="button" class="link" id="bAskStop">Stop</button>';
+  $("bAsk").disabled = true;
+  const prompt = "You are editing one networking email that a Penn sophomore recruiting for investment banking will send from his own Gmail. "
+    + "Apply the instruction and return ONLY the full revised email body as plain text, from the greeting through the sign-off. No preamble, no notes, no markdown. "
+    + "Keep his voice, short paragraphs and sign-off. Do not add facts, deals, names, dates or numbers that are not in the email or the instruction; if a change would need invented facts, leave that part as it is.\n\n"
+    + "Instruction: " + instr + "\n\nTo: " + r.name + " <" + r.recipient + "> at " + r.firm + "\nSubject: " + e.subject + "\n\nEmail:\n" + before;
+  try {
+    const {text, truncated} = await S.sample(prompt, {signal:askCtl.signal, cache:false, onText:({text})=>{ const ta=$("eBody"); if (ta && S.sel===r.id) ta.value = text; }});
+    e.body = text.trim(); e.prev = before; renderDetail();
+    const n=$("askNote"); n.innerHTML = (truncated?"Claude\u2019s answer was cut short. ":"") + 'Review it, then Save to Gmail. <button type="button" class="link" id="bUndo">Undo</button>';
+  } catch(err){
+    e.body = before; renderDetail();
+    const n=$("askNote"); n.className="note err";
+    n.textContent = err.code==="cancelled" ? "" : err.code==="not_granted"||err.code==="sampling_disabled" ? "Claude isn\u2019t available on this page for you." : err.code==="rate_limited" ? "Too many requests right now. Try again in a minute." : err.code==="refused" ? "Claude wouldn\u2019t make that change. Try wording it differently." : "Claude couldn\u2019t finish that. Try again.";
+  }
+}
+async function startBulk(){
+  const ids = [...S.checked];
+  S.confirm = {kind:"bulk", ids, checking:true, done:0}; renderBulk();
+  try { S.confirm.prior = await priorSent(ids.map(id=>byId(id)).filter(r=>!r.isReply).map(r=>r.recipient)); } catch(e){ S.confirm.prior = {}; }
+  if (S.confirm && S.confirm.kind==="bulk"){ S.confirm.checking=false; renderBulk(); }
+}
+async function runBulk(){
+  const c = S.confirm; c.running = true; renderBulk();
+  const sent=[], failed=[];
+  for (const id of c.ids){
+    const r = byId(id); if (!r) continue;
+    try { await gmail("send_message", {draftId:id}, {read:false}); sent.push(r); S.drafts=S.drafts.filter(x=>x.id!==id); S.checked.delete(id); }
+    catch(e){ failed.push([r, errCopy(e,true)]); S.checked.delete(id); }
+    c.done++; renderBulk();
+  }
+  S.confirm = null; if (S.sel && !byId(S.sel)) S.sel=null; recompute(); render();
+  toast("Sent " + sent.length + (failed.length ? ", " + failed.length + " didn\u2019t go" : ""));
+  if (failed.length){ $("banner").textContent = "Not sent: " + failed.map(([r,m])=>r.name + " (" + m + ")").join("; "); $("banner").hidden=false; }
+}
+async function recheckAttachments(){
+  const b=$("bAttach"); b.disabled=true; b.textContent="Checking\u2026";
+  try { const att = await listAll({query:"has:attachment"}); S.attached = new Set(att.map(d=>d.id)); recompute(); render(); toast(S.drafts.filter(r=>r.status==="resume").length + " still need the resume"); }
+  catch(e){ toast(errCopy(e)); }
+  finally { b.disabled=false; b.textContent="Recheck attachments"; }
+}
+
+// ---------- events ----------
+$("tally").addEventListener("click", e=>{ const b=e.target.closest("button"); if (!b) return; S.st=b.dataset.st; render(); });
+document.querySelector(".seg").addEventListener("click", e=>{ const b=e.target.closest("button"); if (!b) return; S.by=b.dataset.by; S.group=null; try{localStorage.setItem("dd.by",S.by)}catch(err){} render(); });
+$("groups").addEventListener("click", e=>{ const b=e.target.closest(".grp"); if (!b) return; S.group=b.dataset.g||null; render(); });
+$("q").addEventListener("input", e=>{ S.q=e.target.value; renderList(); });
+$("selAll").addEventListener("change", e=>{ for (const r of visible()) if (r.status==="ready") e.target.checked ? S.checked.add(r.id) : S.checked.delete(r.id); renderList(); });
+$("list").addEventListener("click", e=>{
+  const ck = e.target.closest("[data-ck]"); if (ck){ e.stopPropagation(); ck.checked ? S.checked.add(ck.dataset.ck) : S.checked.delete(ck.dataset.ck); if (S.confirm&&S.confirm.kind==="bulk") S.confirm=null; renderList(); return; }
+  const row = e.target.closest(".row"); if (!row) return;
+  if (S.confirm && S.confirm.kind!=="bulk" && !S.confirm.running) S.confirm=null;
+  S.sel=row.dataset.id; renderList(); renderDetail();
+});
+$("list").addEventListener("keydown", e=>{ if ((e.key==="Enter"||e.key===" ") && e.target.classList.contains("row")){ e.preventDefault(); e.target.click(); } });
+$("bulk").addEventListener("click", e=>{
+  const id = e.target.closest("button")?.id;
+  if (id==="bClear"){ S.checked.clear(); renderList(); }
+  if (id==="bBulk") startBulk();
+  if (id==="bBulkCancel"){ S.confirm=null; renderBulk(); }
+  if (id==="bBulkGo") runBulk();
+});
+$("detail").addEventListener("input", e=>{
+  const r = byId(S.sel); if (!r) return;
+  const ed = S.edits[r.id] || (S.edits[r.id] = {to:r.to.join(", "), subject:r.subject, body:r.body});
+  if (e.target.id==="eTo") ed.to=e.target.value; else if (e.target.id==="eSubject") ed.subject=e.target.value; else if (e.target.id==="eBody") ed.body=e.target.value; else return;
+  const dirty = ed.to!==r.to.join(", ") || ed.subject!==r.subject || ed.body!==r.body;
+  const save=$("bSave"); if (save) save.disabled = !dirty || !!r.hasAttachment;
+  // redraw only when the draft flips between saved and edited (Send/Discard change), keeping the caret
+  if (dirty !== S.dirtyShown && !S.confirm){
+    const fid=e.target.id, pos=e.target.selectionStart, top=e.target.scrollTop;
+    renderDetail();
+    const el=$(fid); if (el){ el.focus(); el.scrollTop=top; try{el.setSelectionRange(pos,pos)}catch(_){} }
+  }
+});
+$("detail").addEventListener("keydown", e=>{ if (e.target.id==="eAsk" && e.key==="Enter"){ e.preventDefault(); const r=byId(S.sel); if (r) doAsk(r); } });
+$("detail").addEventListener("click", e=>{
+  const id = e.target.closest("button")?.id; const r = byId(S.sel); if (!id) return;
+  if (id==="bBack"){ S.sel=null; S.confirm=null; renderList(); renderDetail(); return; }
+  if (!r) return;
+  if (id==="bSave") doSave(r);
+  if (id==="bRevert"){ delete S.edits[r.id]; renderDetail(); }
+  if (id==="bSend") startSend(r);
+  if (id==="bSendGo") doSend(r);
+  if (id==="bDelete"){ S.confirm={kind:"delete", id:r.id}; renderDetail(); }
+  if (id==="bDelGo") doDelete(r);
+  if (id==="bCancel"){ S.confirm=null; renderDetail(); }
+  if (id==="bAsk") doAsk(r);
+  if (id==="bAskStop") askCtl?.abort();
+  if (id==="bUndo"){ const ed=S.edits[r.id]; if (ed && ed.prev!=null){ ed.body=ed.prev; ed.prev=null; renderDetail(); } }
+});
+$("bRefresh").addEventListener("click", load);
+$("bAttach").addEventListener("click", recheckAttachments);
+
+// ---------- boot ----------
+render();
+(async () => {
+  const [mcp, sample] = await Promise.all([ window.claude?.use?.("mcp") ?? null, window.claude?.use?.("sample") ?? null ]);
+  S.mcp = mcp; S.sample = sample;
+  if (!mcp){
+    $("sync").textContent = "Not connected";
+    $("list").innerHTML = '<div class="blank"><b>Open this page in Claude</b>Draft Desk reads and sends your Gmail drafts through your Gmail connector, which only works inside Claude.</div>';
+    return;
+  }
+  load();
+})();
+</script>

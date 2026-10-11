@@ -65,26 +65,39 @@ Sending cannot be undone. Only send on an explicit instruction that names
 which drafts ("send #12", "send all Raine follow-ups", "send everything
 not flagged").
 
-1. Before sending, re-check each draft against its flags. Refuse to send a
+1. Check history: `mcp__Gmail__search_threads` with `in:sent (to:a OR to:b ...)`
+   for the recipients (25 per query). If the person has already replied in
+   that thread (read it with `get_thread`), a "following up / in case it got
+   buried" draft is stale: don't send it, and offer to delete it. A cold or
+   thank-you draft to someone already emailed the same thing is a duplicate.
+2. Before sending, re-check each draft against its flags. Refuse to send a
    draft that has `NO RECIPIENT`, `placeholder text left in`, or `EMPTY BODY`
    until it is fixed. For `says resume is attached but NOTHING IS ATTACHED`
    and `DUPLICATE RECIPIENT`, say so and ask whether to send anyway, fix it,
    or skip.
-2. For a batch, list the exact drafts (`#n`, name, firm, subject) and the
+3. For a batch, list the exact drafts (`#n`, name, firm, subject) and the
    count, and wait for a "yes" to that list. A send instruction from earlier
    in the chat does not cover a new batch.
-3. Send each with `mcp__Gmail__send_message` passing only `draftId`. Sending by
+4. Send each with `mcp__Gmail__send_message` passing only `draftId`. Sending by
    draft id keeps the thread, the quoted history and any attachments.
-4. Report what was sent and what failed, then refresh the queue (step 1).
+5. Report what was sent and what failed, then refresh the queue (step 1).
 
 ## 5. Attaching the resume
 
-If he wants the resume added to drafts that mention it: find it in Google Drive
-(`mcp__Google_Drive__search_files`, e.g. "resume" PDF), confirm the file with
-him, download it, base64-encode it, and pass it in `attachments`
-(`filename`, `mimeType: application/pdf`, `content`) on `update_draft`
-together with the draft's unchanged `body` and `htmlBody`. Confirm the
-file and the list of drafts before changing any.
+The Gmail connector only takes attachments as base64 typed into the tool call.
+His resume is about 160KB (about 210K base64 characters), so attaching it
+from chat is only practical for one or two drafts, never a batch. For a batch,
+the options are: he attaches it in Gmail, the "Attached is my resume" line
+becomes a Drive link (the file must be shared view-only by link, which he
+approves), or the line comes out and the resume goes in his reply.
+Never leave "Attached is my resume" on a draft with nothing attached.
+
+## Duplicates
+
+When one person has two drafts, keep the newest complete one (no placeholders)
+and delete the other. Before deleting, save the full drafts to
+`out/deleted_drafts_backup.json` so they can be recreated. Leave drafts
+created in the last hour alone and ask: he may still be writing them.
 
 ## Categories
 

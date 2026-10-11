@@ -61,6 +61,7 @@ FIRMS = {
     "crestview.com": ("Crestview", "Private Equity"),
     "brookfield.com": ("Brookfield", "Private Equity"),
     "blackstone.com": ("Blackstone", "Private Equity"),
+    "llrpartners.com": ("LLR Partners", "Private Equity"),
     "ardeapartners.com": ("Ardea Partners", "Investment Firm"),
     "point72.com": ("Point72", "Hedge Fund"),
     "mlp.com": ("Millennium", "Hedge Fund"),
